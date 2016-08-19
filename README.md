@@ -52,11 +52,11 @@ add pomelo-kcp dependencie
 ```
 {
     "name":"pomelo-server",
-    "version":"0.0.2",
+    "version":"0.0.1",
     "private":false,
     "dependencies":{
         "pomelo":"1.2.3",
-        "pomelo-kcp":"^0.0.1"
+        "pomelo-kcp":"^0.0.2"
     }
 }
 ```
