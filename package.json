@@ -1,0 +1,36 @@
+{
+  "name": "pomelo-kcp",
+  "version": "0.0.1",
+  "description": "KCP protocol for pomelo",
+  "main": "index.js",
+  "dependencies": {
+    "node-kcp": "^1.0.4"
+  },
+  "devDependencies": {
+    "chai": "latest",
+    "mocha": "latest",
+    "grunt": "latest",
+    "grunt-mocha-test": "latest",
+    "grunt-contrib-clean": "latest"
+  },
+  "scripts": {
+    "test": "grunt"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/leenjewel/pomelo-kcp.git"
+  },
+  "keywords": [
+    "pomelo",
+    "connector",
+    "game",
+    "web",
+    "kcp"
+  ],
+  "author": "leenjewel",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/leenjewel/pomelo-kcp/issues"
+  },
+  "homepage": "https://github.com/leenjewel/pomelo-kcp#readme"
+}
