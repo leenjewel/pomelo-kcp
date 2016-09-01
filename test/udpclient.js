@@ -73,7 +73,7 @@ var PomeloClient = function(host, port, opts){
                     self.emit('message', data);
                 }
             } else {
-                self.emit('message', data);
+                self.emit('data', JSON.parse(data));
             }
         }
     });
@@ -103,11 +103,13 @@ var PomeloClient = function(host, port, opts){
         self.socket.close();
     });
 
-    this.on('message', function(msg){
-        console.log('message: '+msg.toString());
-    });
-
     this.check();
+
+    if (!opts.usePomeloPackage) {
+        setTimeout(function() {
+            self.emit('connected');
+        }, 0);
+    }
 
 };
 
