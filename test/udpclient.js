@@ -29,6 +29,7 @@ var PomeloClient = function(host, port, opts){
     this.opts = opts || {};
     this.host = host;
     this.port = port;
+    this.heartbeatId = undefined;
 
     var self = this;
 
@@ -55,25 +56,49 @@ var PomeloClient = function(host, port, opts){
     });
     this.socket.on('message', function(msg, peer){
         self.kcpobj.input(msg);
+        var data = self.kcpobj.recv();
+        if (!!data) {
+            if (self.opts && self.opts.usePomeloPackage) {
+                var pkg = pomelocoder.decodePackage(data);
+                if (pomelocoder.isHandshakePackage(pkg.type)) {
+                    self.emit('handshake', JSON.parse(pkg.body));
+                } else if (pomelocoder.isHeartbeatPackage(pkg.type)) {
+                    self.emit('heartbeat', pkg);
+                } else if (pomelocoder.isDataPackage(pkg.type)) {
+                    pkg = pomelocoder.decodeMessage(data);
+                    self.emit('data', JSON.parse(pkg.body));
+                } else if (pomelocoder.isKickPackage(pkg.type)) {
+                    self.emit('kick', pkg);
+                } else {
+                    self.emit('message', data);
+                }
+            } else {
+                self.emit('message', data);
+            }
+        }
     });
 
     this.kcpobj.output((data, size, context) => {
-        console.dir(data);
         self.socket.send(data, 0, size, context.port, context.host);
     });
 
     this.on('handshake', function(pkg){
-        console.dir(pkg);
-        console.log('handshake ack ...');
+        console.log('handshake ...');
+        self.ack();
+        self.init(pkg);
     });
 
-    this.on('data', function(pkg){
-        console.dir(pkg);
-        console.log('data ...');
+    this.on('heartbeat', function(pkg){
+        console.log('heartbeat...'+pomelocoder.getHeartbeatInterval());
+        if (!self.heartbeatId) {
+            self.emit('connected', pkg);
+        }
+        self.heartbeatId = setTimeout(function(){
+            self.heartbeat();
+        }, pomelocoder.getHeartbeatInterval());
     });
 
     this.on('kick', function(pkg){
-        console.dir(pkg);
         console.log('kick ...');
         self.socket.close();
     });
@@ -91,23 +116,6 @@ util.inherits(PomeloClient, EventEmitter);
 PomeloClient.prototype.check = function() {
     var self = this;
     this.kcpobj.update(Date.now());
-    var data = this.kcpobj.recv();
-    if (!!data) {
-        if (self.opts && self.opts.usePomeloPackage) {
-            var pkg = pomelocoder.Package.decode(data);
-            if (pomelocoder.Package.TYPE_HANDSHAKE_ACK == pkg.type) {
-                self.emit('handshake', pkg);
-            } else if (pomelocoder.Package.TYPE_DATA == pkg.type) {
-                self.emit('data', pkg);
-            } else if (pomelocoder.Package.TYPE_KICK == pkg.type) {
-                self.emit('kick', pkg);
-            } else {
-                self.emit('message', data);
-            }
-        } else {
-            self.emit('message', data);
-        }
-    }
     setTimeout(function(){
         self.check();
     }, this.kcpobj.check(Date.now()));
@@ -115,17 +123,17 @@ PomeloClient.prototype.check = function() {
 
 PomeloClient.prototype.send = function(data) {
     this.kcpobj.send(data);
+    this.kcpobj.flush();
 };
 
 PomeloClient.prototype.request = function(msg) {
     if (this.opts && this.opts.usePomeloPackage) {
-        msg = pomelocoder.Message.encode(
+        msg = pomelocoder.messagePackage(
             msg.id,
-            pomelocoder.Message.TYPE_REQUEST,
-            false,
             msg.route,
-            JSON.stringify(msg.body)
+            msg.body
         );
+        this.send(msg);
     } else {
         this.send(JSON.stringify(msg));
     }
@@ -133,15 +141,48 @@ PomeloClient.prototype.request = function(msg) {
 
 PomeloClient.prototype.handshake = function() {
     if (this.opts && this.opts.usePomeloPackage) {
-        this.send(pomelocoder.Package.encode(pomelocoder.Package.TYPE_HANDSHAKE));
+        this.send(pomelocoder.handshakePackage());
     }
 };
 
+PomeloClient.prototype.init = function(data) {
+    var self = this;
+    if (this.opts && this.opts.usePomeloPackage) {
+        pomelocoder.initProtocol(data);
+    }
+};
+
+PomeloClient.prototype.ack = function() {
+    if (this.opts && this.opts.usePomeloPackage) {
+        this.send(pomelocoder.handshakeAckPackage());
+    }
+};
+
+PomeloClient.prototype.heartbeat = function() {
+    if (this.opts && this.opts.usePomeloPackage) {
+        this.send(pomelocoder.heartbeatPackage());
+    }
+};
+
+var reqid = 1;
 var client = new PomeloClient('127.0.0.1', 3010, {usePomeloPackage: true});
 client.handshake();
-client.request({
-    id: 'test',
-    route: 'connector.entryHandler.entry',
-    body: 'test'
+client.on('connected', function(userdata){
+    console.log('onConnected and send request...');
+    client.request({
+        id: reqid++,
+        route: 'connector.entryHandler.entry',
+        body: {}
+    });
+});
+client.on('data', function(userdata){
+    setTimeout(function() {
+        console.log('onData : '+JSON.stringify(userdata)+' and send request : '+(reqid+1));
+    client.request({
+        id: reqid++,
+        route: 'connector.entryHandler.entry',
+        body: {}
+    });
+    }, 500);
 });
 
