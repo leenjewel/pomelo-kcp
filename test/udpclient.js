@@ -15,6 +15,7 @@
  */
 
 var util = require('util');
+var net = require('net');
 var EventEmitter = require('events').EventEmitter;
 var dgram = require('dgram');
 var kcp = require('./../node_modules/node-kcp');
@@ -49,37 +50,28 @@ var PomeloClient = function(host, port, opts){
     var mtu = opts.mtu || 1400;
     this.kcpobj.setmtu(mtu);
 
-    this.socket = dgram.createSocket('udp4');
+    if (opts.useUDP) {
+        this.socket = dgram.createSocket('udp4');
+    } else {
+        this.socket = new net.Socket();
+    }
     this.socket.on('error', function(error){
-        console.log(`client error:\n${err.stack}`);
-        self.socket.close();
-    });
-    this.socket.on('message', function(msg, peer){
-        self.kcpobj.input(msg);
-        var data = self.kcpobj.recv();
-        if (!!data) {
-            if (self.opts && self.opts.usePomeloPackage) {
-                var pkg = pomelocoder.decodePackage(data);
-                if (pomelocoder.isHandshakePackage(pkg.type)) {
-                    self.emit('handshake', JSON.parse(pkg.body));
-                } else if (pomelocoder.isHeartbeatPackage(pkg.type)) {
-                    self.emit('heartbeat', pkg);
-                } else if (pomelocoder.isDataPackage(pkg.type)) {
-                    pkg = pomelocoder.decodeMessage(data);
-                    self.emit('data', JSON.parse(pkg.body));
-                } else if (pomelocoder.isKickPackage(pkg.type)) {
-                    self.emit('kick', pkg);
-                } else {
-                    self.emit('message', data);
-                }
-            } else {
-                self.emit('data', JSON.parse(data));
-            }
+        console.log(`client error:\n${error.stack}`);
+        if (self.opts.useUDP) {
+            self.socket.close();
+        } else {
+            self.socket.destroy();
         }
     });
+    this.socket.on('message', self.ondata.bind(self));
+    this.socket.on('data', self.ondata.bind(self));
 
     this.kcpobj.output((data, size, context) => {
-        self.socket.send(data, 0, size, context.port, context.host);
+        if (self.opts.useUDP) {
+            self.socket.send(data, 0, size, context.port, context.host);
+        } else {
+            self.socket.write(data);
+        }
     });
 
     this.on('handshake', function(pkg){
@@ -91,7 +83,7 @@ var PomeloClient = function(host, port, opts){
     this.on('heartbeat', function(pkg){
         console.log('heartbeat...'+pomelocoder.getHeartbeatInterval());
         if (!self.heartbeatId) {
-            self.emit('connected', pkg);
+            self.emit('start', pkg);
         }
         self.heartbeatId = setTimeout(function(){
             self.heartbeat();
@@ -105,10 +97,22 @@ var PomeloClient = function(host, port, opts){
 
     this.check();
 
-    if (!opts.usePomeloPackage) {
-        setTimeout(function() {
-            self.emit('connected');
+    if (opts.useUDP) {
+        setTimeout(function(){
+            if (self.opts.usePomeloPackage) {
+                self.emit('connected');
+            } else {
+                self.emit('start');
+            }
         }, 0);
+    } else {
+        this.socket.connect(port, host, function(){
+            if (self.opts.usePomeloPackage) {
+                self.emit('connected');
+            } else {
+                self.emit('start');
+            }
+        });
     }
 
 };
@@ -121,6 +125,31 @@ PomeloClient.prototype.check = function() {
     setTimeout(function(){
         self.check();
     }, this.kcpobj.check(Date.now()));
+};
+
+PomeloClient.prototype.ondata = function(msg) {
+    var self = this;
+    self.kcpobj.input(msg);
+    var data = self.kcpobj.recv();
+    if (!!data) {
+        if (self.opts && self.opts.usePomeloPackage) {
+            var pkg = pomelocoder.decodePackage(data);
+            if (pomelocoder.isHandshakePackage(pkg.type)) {
+                self.emit('handshake', JSON.parse(pkg.body));
+            } else if (pomelocoder.isHeartbeatPackage(pkg.type)) {
+                self.emit('heartbeat', pkg);
+            } else if (pomelocoder.isDataPackage(pkg.type)) {
+                pkg = pomelocoder.decodeMessage(data);
+                self.emit('data', JSON.parse(pkg.body));
+            } else if (pomelocoder.isKickPackage(pkg.type)) {
+                self.emit('kick', pkg);
+            } else {
+                self.emit('message', data);
+            }
+        } else {
+            self.emit('data', JSON.parse(data));
+        }
+    }
 };
 
 PomeloClient.prototype.send = function(data) {
@@ -168,8 +197,10 @@ PomeloClient.prototype.heartbeat = function() {
 
 var reqid = 1;
 var client = new PomeloClient('127.0.0.1', 3010, {usePomeloPackage: true});
-client.handshake();
-client.on('connected', function(userdata){
+client.on('connected', function(){
+    client.handshake();
+});
+client.on('start', function(userdata){
     console.log('onConnected and send request...');
     client.request({
         id: reqid++,
