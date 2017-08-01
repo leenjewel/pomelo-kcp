@@ -1,22 +1,23 @@
-#pomelo-kcp
-
+pomelo-kcp
 ======================================
-[![Build Status][1]][2] 
+
+[![Build Status][1]][2]
+
 [1]: https://api.travis-ci.org/leenjewel/node-kcp.svg?branch=master
 [2]: https://travis-ci.org/leenjewel/node-kcp
 
 
 [KCP Protocol](https://github.com/skywind3000/kcp) for [Pomelo](https://github.com/NetEase/pomelo)
 
-##HowTo
+## HowTo
 
-###Install Pomelo
+### Install Pomelo
 
 ```
 $sudo npm install -g pomelo
 ```
 
-###Create Pomelo Project
+### Create Pomelo Project
 
 ```
 $pomelo init pomelo_test_server
@@ -24,7 +25,7 @@ $pomelo init pomelo_test_server
 $cd pomelo_test_server
 ```
 
-###Add pomelo-kcp dependencies
+### Add pomelo-kcp dependencies
 
 ```
 $cd pomelo_test_server
@@ -69,7 +70,7 @@ $cd pomelo_test_server/game_server
 $npm install
 ```
 
-###Change Application Connector
+### Change Application Connector
 
 Edit `app.js`
 
@@ -129,7 +130,7 @@ $cd pomelo_test_server/game_server
 $pomelo start
 ```
 
-###Test
+### Test
 
 ```
 $node pomelo_test_server/game_server/node_modules/pomelo-kcp/test/udpclient.js
