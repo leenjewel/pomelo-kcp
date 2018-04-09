@@ -57,7 +57,7 @@ add pomelo-kcp dependencie
     "private":false,
     "dependencies":{
         "pomelo":"1.2.3",
-        "pomelo-kcp":"^0.0.3"
+        "pomelo-kcp":"^0.0.4"
     }
 }
 ```
